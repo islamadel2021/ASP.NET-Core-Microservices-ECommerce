@@ -1,0 +1,66 @@
+using IdentityDemo;
+using Matgr.IdentityServer;
+using Matgr.IdentityServer.IdentityServerData;
+using Matgr.IdentityServer.Models;
+using Matgr.IdentityServer.Services;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+builder.Services.AddRazorPages();
+
+//Get The Connection String Value
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+// Add services to the container.
+builder.Services.AddDbContext<IdentityServerDbContext>(options => options.UseSqlServer(connectionString));
+
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+    .AddEntityFrameworkStores<IdentityServerDbContext>()
+    .AddDefaultTokenProviders();
+
+var identity = builder.Services.AddIdentityServer(options =>
+{
+    options.Events.RaiseErrorEvents = true;
+    options.Events.RaiseInformationEvents = true;
+    options.Events.RaiseFailureEvents = true;
+    options.Events.RaiseSuccessEvents = true;
+    options.EmitStaticAudienceClaim = true;
+})
+.AddInMemoryIdentityResources(SD.IdentityResources)
+.AddInMemoryApiScopes(SD.ApiScopes)
+.AddInMemoryClients(SD.Clients)
+.AddAspNetIdentity<ApplicationUser>()
+.AddProfileService<ProfileService>();
+
+identity.AddDeveloperSigningCredential();
+
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Error");
+    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+app.UseStaticFiles();
+
+app.UseRouting();
+app.UseIdentityServer();
+app.UseAuthorization();
+
+using var scope = app.Services.CreateScope();
+var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
+DbInitializer.Initialize(userManager, roleManager);
+
+app.MapRazorPages();
+
+app.Run();
